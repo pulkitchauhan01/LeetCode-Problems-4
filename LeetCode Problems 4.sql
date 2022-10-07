@@ -297,3 +297,184 @@ LEFT JOIN (
 ) t
 ON  d.dept_id = t.dept_id
 ORDER BY student_number DESC, dept_name;
+
+Type: Pivot and Join
+
+1. 
+
+WITH grand_slam_table AS (
+    SELECT
+        year,
+        wimbledon AS player
+    FROM championships
+
+    UNION ALL
+
+    SELECT
+        year,
+        fr_open AS player
+    FROM championships
+
+    UNION ALL
+
+    SELECT
+        year,
+        us_open AS player
+    FROM championships
+
+    UNION ALL
+
+    SELECT
+        year,
+        au_open AS player
+    FROM championships
+)
+
+SELECT
+    g.player AS player_id,
+    p.player_name,
+    COUNT(*) AS grand_slams_count
+FROM grand_slam_table g
+LEFT JOIN players p
+ON g.player = p.player_id
+GROUP BY g.player;
+
+
+# Same query with a shorter code
+
+SELECT
+    player_id,
+    player_name,
+    SUM(player_id = wimbledon) + SUM(player_id = fr_open) + SUM(player_id = us_open) + SUM(player_id = au_open) AS grand_slams_count
+FROM players
+JOIN championships
+ON player_id = wimbledon OR player_id = fr_open OR player_id = us_open OR player_id = au_open
+GROUP BY player_id
+
+
+
+Type: Subquery, Join and Conditions
+
+1. Product Price at a Given Date
+
+SELECT
+    p.product_id,
+    new_price AS price
+FROM products p
+JOIN (
+    SELECT
+        product_id,
+        MAX(change_date) AS latest_date
+    FROM products
+    WHERE change_date <= '2019-08-16'
+    GROUP BY product_id
+)   AS l
+ON p.product_id = l.product_id 
+AND p.change_date = l.latest_date
+
+UNION
+
+SELECT
+    DISTINCT product_id,
+    10 AS price
+FROM products
+GROUP BY product_id
+HAVING MIN(change_date) > '2019-08-16';
+
+# Can also be written as
+
+SELECT
+    DISTINCT p.product_id,
+    IFNULL(t.new_price,10) AS price
+FROM products p
+LEFT JOIN (
+    SELECT
+        *
+    FROM products
+    WHERE (product_id, change_date) IN (
+        SELECT
+            product_id,
+            MAX(change_date) AS latest_date
+        FROM products
+        WHERE change_date <= '2019-08-16'
+        GROUP BY product_id
+        )
+)   AS t
+ON p.product_id = t.product_id 
+
+
+Type: Conditional Based on Comparison between values from 2 different tables
+
+1. Find Cutoff Score for Each School
+
+SELECT
+    s.school_id,
+    IFNULL(MIN(e.score),-1) AS score
+FROM schools s
+LEFT JOIN exam e
+ON s.capacity >= e.student_count
+GROUP BY s.school_id;
+
+Type: Moving Averages
+
+1. Restaurant Growth
+
+SELECT
+    MAX(b.visited_on) AS visited_on,
+    SUM(b.sum_amount) AS amount,
+    ROUND(AVG(b.sum_amount),2) AS average_amount
+FROM
+(SELECT visited_on, SUM(amount) AS sum_amount FROM customer GROUP BY visited_on) AS a,
+(SELECT visited_on, SUM(amount) AS sum_amount FROM customer GROUP BY visited_on) AS b
+WHERE DATEDIFF(b.visited_on, a.visited_on) BETWEEN 0 AND 6
+GROUP BY a.visited_on
+HAVING COUNT(*) = 7
+ORDER BY a.visited_on;
+
+
+-- OR 
+
+SELECT
+    a.visited_on AS visited_on,
+    SUM(b.sum_amount) AS amount,
+    ROUND(AVG(b.sum_amount),2) AS average_amount
+FROM
+(SELECT visited_on, SUM(amount) AS sum_amount FROM customer GROUP BY visited_on) AS a,
+(SELECT visited_on, SUM(amount) AS sum_amount FROM customer GROUP BY visited_on) AS b
+WHERE DATEDIFF(a.visited_on, b.visited_on) BETWEEN 0 AND 6
+GROUP BY a.visited_on
+HAVING COUNT(*) = 7
+ORDER BY a.visited_on;
+
+
+Type: Union and Limit
+
+1. Movie Rating
+
+
+(
+SELECT
+    u.name AS results  
+FROM movierating m
+JOIN users u
+ON u.user_id = m.user_id
+GROUP BY m.user_id
+ORDER BY COUNT(*) DESC, u.name
+LIMIT 1
+)
+
+
+UNION 
+
+(
+SELECT
+    m1.title AS results
+FROM movierating m
+JOIN movies m1
+ON m.movie_id = m1.movie_id
+WHERE LEFT(m.created_at,7) = "2020-02"
+GROUP BY m.movie_id
+ORDER BY AVG(m.rating) DESC, m1.title
+LIMIT 1
+)
+;
